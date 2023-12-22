@@ -3,17 +3,17 @@ package video.api.reactnative.livestream
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.PackageManager
 import android.util.AttributeSet
 import android.util.Log
 import android.view.ScaleGestureDetector
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.app.ActivityCompat
+import com.facebook.react.uimanager.ThemedReactContext
 import video.api.livestream.ApiVideoLiveStream
 import video.api.livestream.enums.CameraFacingDirection
 import video.api.livestream.interfaces.IConnectionChecker
 import video.api.livestream.models.AudioConfig
 import video.api.livestream.models.VideoConfig
+import video.api.reactnative.livestream.utils.showDialog
 import java.io.Closeable
 
 
@@ -25,6 +25,8 @@ class LiveStreamView @JvmOverloads constructor(
 ) : ConstraintLayout(context, attrs, defStyle),
   Closeable {
   private val liveStream: ApiVideoLiveStream
+  private val permissionsManager =
+    PermissionsManager((context as ThemedReactContext).reactApplicationContext)
 
   var onConnectionSuccess: (() -> Unit)? = null
   var onConnectionFailed: ((reason: String?) -> Unit)? = null
@@ -62,32 +64,46 @@ class LiveStreamView @JvmOverloads constructor(
   var videoConfig: VideoConfig?
     get() = liveStream.videoConfig
     set(value) {
-      if (ActivityCompat.checkSelfPermission(
-          context,
-          Manifest.permission.CAMERA
-        ) != PackageManager.PERMISSION_GRANTED
-      ) {
-        Log.e(TAG, "Missing permissions Manifest.permission.CAMERA")
-        throw UnsupportedOperationException("Missing permissions Manifest.permission.CAMERA")
-      }
-
-      liveStream.videoConfig = value
+      permissionsManager.requestPermission(
+        Manifest.permission.CAMERA,
+        onGranted = {
+          liveStream.videoConfig = value
+        },
+        onShowPermissionRationale = { onRequiredPermissionLastTime ->
+          context.showDialog(
+            R.string.permission_required,
+            R.string.camera_permission_required_message,
+            android.R.string.ok,
+            onPositiveButtonClick = { onRequiredPermissionLastTime() }
+          )
+        },
+        onDenied = {
+          Log.e(TAG, "Missing permissions Manifest.permission.CAMERA")
+          throw UnsupportedOperationException("Missing permission Manifest.permission.CAMERA")
+        })
     }
 
 
   var audioConfig: AudioConfig?
     get() = liveStream.audioConfig
     set(value) {
-      if (ActivityCompat.checkSelfPermission(
-          context,
-          Manifest.permission.RECORD_AUDIO
-        ) != PackageManager.PERMISSION_GRANTED
-      ) {
-        Log.e(TAG, "Missing permissions Manifest.permission.RECORD_AUDIO")
-        throw UnsupportedOperationException("Missing permissions Manifest.permission.RECORD_AUDIO")
-      }
-
-      liveStream.audioConfig = value
+      permissionsManager.requestPermission(
+        Manifest.permission.RECORD_AUDIO,
+        onGranted = {
+          liveStream.audioConfig = value
+        },
+        onShowPermissionRationale = { onRequiredPermissionLastTime ->
+          context.showDialog(
+            R.string.permission_required,
+            R.string.record_audio_permission_required_message,
+            android.R.string.ok,
+            onPositiveButtonClick = { onRequiredPermissionLastTime() }
+          )
+        },
+        onDenied = {
+          Log.e(TAG, "Missing permissions Manifest.permission.RECORD_AUDIO")
+          throw UnsupportedOperationException("Missing permission Manifest.permission.RECORD_AUDIO")
+        })
     }
 
   val isStreaming: Boolean
